@@ -230,6 +230,7 @@ class GatewayState:
                 pass
 
 
+
 gstate = GatewayState()
 
 
@@ -475,13 +476,13 @@ class EmailAgent:
             await self._process_single_email(client, num_str, email_message)
 
     async def _process_single_email(self, client, num_str, email_message):
-        from_header = email_message.get("From", "")
+        from_header = self._decode_header(email_message.get("From", ""))
         from_addr = parseaddr(from_header)[1]
         if not from_addr:
             await client.store(num_str, "+FLAGS", "\\Seen")
             return
 
-        subject = email_message.get("Subject", "").strip()
+        subject = self._decode_header(email_message.get("Subject", "")).strip()
         await client.store(num_str, "+FLAGS", "\\Seen")
 
         agent_email = self.cfg.get("agent_email", "").lower()
@@ -730,6 +731,19 @@ class EmailAgent:
             await gstate.broadcast({"type": "stats", "stats": gstate.stats})
             self.logger.error(f"❌ Manual send failed → {node_name}")
             return False, f"RF delivery to {node_name} failed"
+
+
+    def _decode_header(self, header_value):
+        if header_value is None:
+            return ""
+        if isinstance(header_value, str):
+            return header_value
+        try:
+            from email.header import decode_header, make_header
+            decoded_parts = decode_header(header_value)
+            return str(make_header(decoded_parts))
+        except:
+            return str(header_value)
 
 
 # ═══════════════════════════════════════════════════════════
