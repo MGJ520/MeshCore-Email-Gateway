@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MeshCore Gateway</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:      #0d1117;
+  --bg2:     #161b22;
+  --bg3:     #21262d;
+  --border:  #30363d;
+  --text:    #e6edf3;
+  --muted:   #6e7681;
+  --muted2:  #8b949e;
+  --accent:  #3fb950;
+  --blue:    #58a6ff;
+  --warn:    #d29922;
+  --error:   #f85149;
+  --purple:  #bc8cff;
+  --orange:  #f0883e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+header {
+  height: 56px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; color: var(--text); flex-shrink: 0; }
+.logo svg { color: var(--accent); }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.sim-badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); padding: 3px 8px; border-radius: 4px; display: none; }
+.pill { display: flex; align-items: center; gap: 7px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-size: 13px; font-weight: 500; color: var(--muted2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s; }
+.dot.ok   { background: var(--accent);  box-shadow: 0 0 6px var(--accent); }
+.dot.spin { background: var(--warn);    animation: blink 0.8s infinite; }
+.dot.bad  { background: var(--error);   box-shadow: 0 0 6px var(--error); }
+@keyframes blink { 50% { opacity: 0.2; } }
+
+/* ── Layout ── */
+.layout { display: grid; grid-template-columns: 220px 1fr; height: calc(100vh - 56px); }
+
+/* ── Sidebar ── */
+.sidebar { background: var(--bg2); border-right: 1px solid var(--border); padding: 12px 8px; overflow-y: auto; }
+.sidebar-section { margin-bottom: 4px; }
+.sidebar-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; padding: 8px 8px 4px; }
+.nav-btn { width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 6px; border: none; background: transparent; color: var(--muted2); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: background 0.12s, color 0.12s; position: relative; }
+.nav-btn:hover { background: var(--bg3); color: var(--text); }
+.nav-btn.active { background: rgba(63,185,80,0.12); color: var(--accent); }
+.nav-btn svg { flex-shrink: 0; }
+.err-badge { margin-left: auto; background: rgba(248,81,73,0.2); color: var(--error); font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 10px; display: none; }
+
+/* ── Main ── */
+main { overflow-y: auto; padding: 24px 28px 48px; }
+.panel { display: none; }
+.panel.active { display: block; animation: fadein 0.15s ease; }
+@keyframes fadein { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+.page-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.page-sub { font-size: 13px; color: var(--muted2); margin-bottom: 20px; font-family: 'IBM Plex Mono', monospace; }
+
+/* ── Cards ── */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; }
+.card-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--muted2); display: flex; align-items: center; gap: 8px; }
+.card-body { padding: 16px; }
+
+/* ── Stats grid ── */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; cursor: default; transition: border-color 0.15s; }
+.stat:hover { border-color: var(--muted2); }
+.stat-val { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.stat-lbl { font-size: 12px; color: var(--muted2); margin-top: 2px; }
+.stat-trend { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
+
+/* ── Email Stats Panel ── */
+.email-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.email-stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 14px; }
+.email-stat-card .es-val { font-size: 22px; font-weight: 600; }
+.email-stat-card .es-lbl { font-size: 12px; color: var(--muted2); margin-top: 2px; }
+.chart-wrap { height: 140px; position: relative; margin-top: 8px; }
+.chart-bars { display: flex; align-items: flex-end; height: 120px; gap: 3px; padding: 0 2px; }
+.chart-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; }
+.bar-pair { display: flex; gap: 1px; align-items: flex-end; width: 100%; height: 120px; }
+.bar { flex: 1; border-radius: 2px 2px 0 0; transition: opacity 0.2s; min-height: 0; }
+.bar.b-green { background: var(--accent); opacity: 0.75; }
+.bar.b-blue  { background: var(--blue);  opacity: 0.75; }
+.bar:hover { opacity: 1; }
+.chart-labels { display: flex; gap: 3px; padding: 4px 2px 0; }
+.chart-label { flex: 1; font-size: 9px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.chart-legend { display: flex; gap: 12px; margin-top: 8px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted2); }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+.recent-emails-list { max-height: 220px; overflow-y: auto; }
+.email-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(48,54,61,0.5); font-size: 12px; }
+.email-row:last-child { border-bottom: none; }
+.email-dir { width: 22px; height: 22px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+.email-dir.in  { background: rgba(88,166,255,0.15); color: var(--blue); }
+.email-dir.out { background: rgba(63,185,80,0.15);  color: var(--accent); }
+.email-dir.err { background: rgba(248,81,73,0.15);  color: var(--error); }
+.email-meta { flex: 1; min-width: 0; }
+.email-subj { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.email-from { color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+.email-time { color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; flex-shrink: 0; }
+
+/* ── Compose / Send Email Panel ── */
+.compose-area { display: flex; flex-direction: column; gap: 12px; }
+.compose-to-row { display: flex; gap: 8px; align-items: flex-start; }
+.compose-to-row .field { flex: 1; }
+.node-select-wrap { position: relative; }
+.node-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.node-chip { display: inline-flex; align-items: center; gap: 5px; background: rgba(88,166,255,0.12); color: var(--blue); border: 1px solid rgba(88,166,255,0.25); border-radius: 4px; padding: 3px 8px; font-size: 12px; font-family: 'IBM Plex Mono', monospace; cursor: pointer; transition: all 0.12s; }
+.node-chip:hover { background: rgba(88,166,255,0.2); }
+.node-chip.selected { background: rgba(63,185,80,0.15); color: var(--accent); border-color: rgba(63,185,80,0.35); }
+.tpl-preview { background: #010409; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted2); white-space: pre-wrap; min-height: 60px; }
+
+/* ── Templates ── */
+.tpl-list { display: flex; flex-direction: column; gap: 8px; }
+.tpl-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; display: flex; align-items: flex-start; gap: 12px; cursor: pointer; transition: border-color 0.12s; }
+.tpl-item:hover { border-color: var(--muted2); }
+.tpl-item.active-tpl { border-color: var(--blue); background: rgba(88,166,255,0.05); }
+.tpl-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.tpl-info { flex: 1; min-width: 0; }
+.tpl-name { font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 3px; }
+.tpl-desc { font-size: 12px; color: var(--muted2); }
+.tpl-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.tpl-edit-area { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-top: 12px; animation: fadein 0.15s ease; }
+.tpl-vars { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tpl-var { background: rgba(188,140,255,0.12); color: var(--purple); border: 1px solid rgba(188,140,255,0.25); border-radius: 3px; padding: 2px 7px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; cursor: pointer; }
+.tpl-var:hover { background: rgba(188,140,255,0.2); }
+
+/* ── Error Format Config ── */
+.err-format-tabs { display: flex; gap: 2px; margin-bottom: 12px; flex-wrap: wrap; }
+.eftab { padding: 6px 14px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--muted2); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.12s; }
+.eftab:hover { background: var(--bg3); color: var(--text); }
+.eftab.sel { background: rgba(88,166,255,0.1); border-color: var(--blue); color: var(--blue); }
+.eftab.sel-green { background: rgba(63,185,80,0.1); border-color: var(--accent); color: var(--accent); }
+.err-preview-box { background: #010409; border: 1px solid var(--border); border-radius: 6px; padding: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; white-space: pre-wrap; line-height: 1.7; }
+.err-preview-subject { color: var(--warn); margin-bottom: 4px; }
+.err-preview-body { color: var(--muted2); }
+
+/* ── Setup Wizard ── */
+.wizard-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; animation: fadein 0.2s ease; }
+.wizard-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; width: 580px; max-width: 95vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+.wizard-header { padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.wizard-title { font-size: 17px; font-weight: 600; }
+.wizard-sub { font-size: 13px; color: var(--muted2); margin-top: 2px; }
+.wizard-steps { display: flex; gap: 0; margin-top: 14px; }
+.wstep { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; }
+.wstep:not(:last-child)::after { content: ''; position: absolute; top: 12px; left: 50%; width: 100%; height: 1px; background: var(--border); }
+.wstep.done::after { background: var(--accent); }
+.wstep-num { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg2); z-index: 1; transition: all 0.2s; }
+.wstep.active .wstep-num { border-color: var(--blue); color: var(--blue); background: rgba(88,166,255,0.1); }
+.wstep.done .wstep-num { border-color: var(--accent); background: rgba(63,185,80,0.15); color: var(--accent); }
+.wstep-lbl { font-size: 11px; color: var(--muted); font-weight: 500; text-align: center; }
+.wstep.active .wstep-lbl { color: var(--blue); }
+.wstep.done  .wstep-lbl { color: var(--accent); }
+.wizard-body { padding: 24px; overflow-y: auto; flex: 1; }
+.wizard-step-panel { display: none; }
+.wizard-step-panel.active { display: block; animation: fadein 0.2s ease; }
+.wizard-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.wz-info { font-size: 12px; color: var(--muted2); }
+.wizard-test-result { margin-top: 10px; padding: 10px 12px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; display: none; }
+.wizard-test-result.ok  { background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3); color: var(--accent); }
+.wizard-test-result.err { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--error); }
+
+/* ── Conn status ── */
+.conn-status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.conn-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
+.conn-item-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 6px; }
+.conn-item-val { font-size: 14px; font-weight: 500; color: var(--muted2); display: flex; align-items: center; gap: 8px; }
+.conn-item-sub { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ── Form ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid.full { grid-template-columns: 1fr; }
+.form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+label { font-size: 12px; font-weight: 600; color: var(--muted2); }
+input[type=text], input[type=email], input[type=number], input[type=password], select, textarea {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 8px 10px; outline: none; width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(88,166,255,0.1); }
+select option { background: var(--bg3); }
+textarea { resize: vertical; min-height: 80px; }
+.hint { font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+
+/* ── Toggle ── */
+.toggle-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.toggle { position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0; }
+.toggle input { display: none; }
+.toggle-track { position: absolute; inset: 0; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; transition: all 0.2s; }
+.toggle input:checked ~ .toggle-track { background: rgba(63,185,80,0.25); border-color: var(--accent); }
+.toggle-thumb { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--muted); border-radius: 50%; transition: all 0.2s; }
+.toggle input:checked ~ .toggle-track .toggle-thumb { left: 19px; background: var(--accent); }
+.toggle-lbl { font-size: 13px; font-weight: 500; }
+
+/* ── Transport selector ── */
+.transport-grid { display: flex; gap: 10px; margin-bottom: 4px; }
+.tr-card { flex: 1; border: 1px solid var(--border); border-radius: 6px; padding: 12px; cursor: pointer; text-align: center; transition: all 0.15s; background: var(--bg3); }
+.tr-card:hover { border-color: var(--muted2); }
+.tr-card.sel { border-color: var(--blue); background: rgba(88,166,255,0.07); color: var(--blue); }
+.tr-card input { display: none; }
+.tr-icon { font-size: 18px; margin-bottom: 4px; }
+.tr-lbl { font-size: 12px; font-weight: 600; }
+.sect { display: none; }
+.sect.on { display: block; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s, transform 0.1s; }
+.btn:active { transform: scale(0.97); }
+.btn-green  { background: var(--accent); color: #0d1117; }
+.btn-green:hover { opacity: 0.9; }
+.btn-blue   { background: var(--blue); color: #0d1117; }
+.btn-blue:hover { opacity: 0.9; }
+.btn-ghost  { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--bg3); }
+.btn-danger { background: transparent; color: var(--error); border: 1px solid rgba(248,81,73,0.3); }
+.btn-danger:hover { background: rgba(248,81,73,0.08); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-row { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+
+/* ── Log panel ── */
+.log-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.filter-btn { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted2); font-family: 'IBM Plex Mono', monospace; transition: all 0.12s; }
+.filter-btn:hover { border-color: var(--muted2); color: var(--text); }
+.filter-btn.fa  { color: var(--text);   border-color: var(--muted2);  background: var(--bg3); }
+.filter-btn.fi  { color: var(--blue);   border-color: var(--blue);    background: rgba(88,166,255,0.08); }
+.filter-btn.fw  { color: var(--warn);   border-color: var(--warn);    background: rgba(210,153,34,0.08); }
+.filter-btn.fe  { color: var(--error);  border-color: var(--error);   background: rgba(248,81,73,0.08); }
+.filter-btn.fd  { color: var(--muted2); border-color: var(--muted);   background: var(--bg3); }
+#logbox { background: #010409; border: 1px solid var(--border); border-radius: 6px; height: 460px; overflow-y: auto; padding: 10px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; line-height: 1.65; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.le { display: flex; gap: 10px; padding: 1px 0; border-bottom: 1px solid rgba(48,54,61,0.4); animation: logslide 0.15s ease; }
+@keyframes logslide { from { opacity:0; transform:translateX(-4px); } to { opacity:1; transform:none; } }
+.le.hide { display: none; }
+.lt { color: var(--muted); flex-shrink: 0; }
+.ll { width: 48px; flex-shrink: 0; text-align: right; font-weight: 600; }
+.ll.INFO  { color: var(--blue); }
+.ll.WARN  { color: var(--warn); }
+.ll.ERROR { color: var(--error); }
+.ll.DEBUG { color: var(--muted2); }
+.lm { color: var(--text); flex: 1; word-break: break-all; white-space: pre-wrap; }
+
+/* ── Table ── */
+.tbl-wrap { overflow-x: auto; border-radius: 6px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { background: var(--bg3); }
+th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted2); border-bottom: 1px solid var(--border); }
+td { padding: 10px 14px; border-bottom: 1px solid rgba(48,54,61,0.5); font-family: 'IBM Plex Mono', monospace; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.bg-green { background: rgba(63,185,80,0.12); color: var(--accent); }
+.bg-blue  { background: rgba(88,166,255,0.12); color: var(--blue); }
+.bg-gray  { background: rgba(110,118,129,0.12); color: var(--muted2); }
+.bg-warn  { background: rgba(210,153,34,0.12); color: var(--warn); }
+
+/* ── Mini log ── */
+#mini-log { font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.7; color: var(--muted2); max-height: 180px; overflow-y: auto; }
+.ml-info  { color: var(--text); }
+.ml-warn  { color: var(--warn); }
+.ml-error { color: var(--error); }
+.ml-debug { color: var(--muted); }
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 32px; right: 24px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; z-index: 999; opacity: 0; transform: translateY(16px); transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1); pointer-events: none; max-width: 340px; }
+.toast.show { opacity: 1; transform: none; }
+
+/* ── WS status bar ── */
+.ws-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 26px; background: var(--bg2); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); z-index: 40; }
+.ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.ws-dot.ok { background: var(--accent); }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Divider ── */
+.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* Spinning animation */
+.spin-anim { animation: rotate 1s linear infinite; display: inline-block; }
+@keyframes rotate { to { transform: rotate(360deg); } }
+
+/* Rate table */
+.rate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rate-item { background: var(--bg3); border-radius: 6px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; }
+.rate-lbl { font-size: 12px; color: var(--muted2); }
+.rate-val { font-size: 14px; font-weight: 600; color: var(--text); font-family: 'IBM Plex Mono', monospace; }
+
+/* ── RF Reply info banner ── */
+.rf-reply-info { font-size: 12px; color: var(--muted2); margin-bottom: 10px; padding: 8px 10px; background: rgba(63,185,80,0.07); border: 1px solid rgba(63,185,80,0.2); border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SETUP WIZARD ═══ -->
+<div class="wizard-overlay" id="wizard" style="display:none;">
+  <div class="wizard-box">
+    <div class="wizard-header">
+      <div class="wizard-title">⚡ Quick Setup — MeshCore Email Gateway</div>
+      <div class="wizard-sub">Complete these steps to get started in under 2 minutes</div>
+      <div class="wizard-steps" id="wz-steps">
+        <div class="wstep active" id="ws0"><div class="wstep-num">1</div><div class="wstep-lbl">Transport</div></div>
+        <div class="wstep" id="ws1"><div class="wstep-num">2</div><div class="wstep-lbl">Email</div></div>
+        <div class="wstep" id="ws2"><div class="wstep-num">3</div><div class="wstep-lbl">Test</div></div>
+        <div class="wstep" id="ws3"><div class="wstep-num">4</div><div class="wstep-lbl">Done</div></div>
+      </div>
+    </div>
+    <div class="wizard-body">
+      <!-- Step 0: Transport -->
+      <div class="wizard-step-panel active" id="wzp0">
+        <div style="font-size:13px;color:var(--muted2);margin-bottom:14px;">How does your MeshCore device connect?</div>
+        <div class="transport-grid" style="flex-direction:column;gap:8px;">
+          <label class="tr-card sel" style="display:flex;align-items:center;gap:12px;text-align:left;padding:14px;" onclick="wzSelTr('ble',this)">
+            <input type="radio" name="wz-tr" value="ble" checked>
+            <div><div style="font-size:16px;margin-bottom:2px;">🔵</div><div style="font-weight:600;font-size:13px;color:inherit;">BLE (Bluetooth)</div><div style="font-size:12px;color:var(--muted2);margin-top:2px;">Wireless, for nearby devices. Leave address blank to auto-scan.</div></div>
+          </label>
+          <label class="tr-card" style="display:flex;align-items:center;gap:12px;text-align:left;padding:14px;" onclick="wzSelTr('serial',this)">
+            <input type="radio" name="wz-tr" value="serial">
+            <div><div style="font-size:16px;margin-bottom:2px;">🔌</div><div style="font-weight:600;font-size:13px;color:inherit;">Serial / USB</div><div style="font-size:12px;color:var(--muted2);margin-top:2px;">Direct cable connection, usually /dev/ttyUSB0 or COM3.</div></div>
+          </label>
+          <label class="tr-card" style="display:flex;align-items:center;gap:12px;text-align:left;padding:14px;" onclick="wzSelTr('tcp',this)">
+            <input type="radio" name="wz-tr" value="tcp">
+            <div><div style="font-size:16px;margin-bottom:2px;">🌐</div><div style="font-weight:600;font-size:13px;color:inherit;">TCP / Network</div><div style="font-size:12px;color:var(--muted2);margin-top:2px;">Connect over LAN or internet to a remote MeshCore node.</div></div>
+          </label>
+        </div>
+        <div id="wz-sect-ble" style="margin-top:12px;" class="wz-sect">
+          <div class="form-grid">
+            <div class="field"><label>BLE Address (optional)</label><input type="text" id="wz-ble-addr" placeholder="AA:BB:CC:DD:EE:FF"></div>
+            <div class="field"><label>PIN (optional)</label><input type="text" id="wz-ble-pin" placeholder="(none)"></div>
+          </div>
+        </div>
+        <div id="wz-sect-serial" style="margin-top:12px;display:none;" class="wz-sect">
+          <div class="form-grid">
+            <div class="field"><label>Serial Port</label><input type="text" id="wz-serial-port" value="/dev/ttyUSB0"></div>
+            <div class="field"><label>Baud Rate</label><select id="wz-serial-baud"><option>9600</option><option>57600</option><option selected>115200</option><option>230400</option></select></div>
+          </div>
+        </div>
+        <div id="wz-sect-tcp" style="margin-top:12px;display:none;" class="wz-sect">
+          <div class="form-grid">
+            <div class="field"><label>Host</label><input type="text" id="wz-tcp-host" value="192.168.1.100"></div>
+            <div class="field"><label>Port</label><input type="number" id="wz-tcp-port" value="4000"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Step 1: Email -->
+      <div class="wizard-step-panel" id="wzp1">
+        <div style="font-size:13px;color:var(--muted2);margin-bottom:14px;">Configure the email account the gateway will use to send and receive messages.</div>
+        <div class="field" style="margin-bottom:12px;">
+          <label>Gateway Email Address</label>
+          <input type="email" id="wz-agent-email" placeholder="gateway@example.com">
+          <div class="hint">This is the address that will appear as the sender</div>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-head">📤 SMTP — Outbound</div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Server</label><input type="text" id="wz-smtp-server" value="smtp.qq.com"></div>
+              <div class="field"><label>Port</label><input type="number" id="wz-smtp-port" value="587"></div>
+              <div class="field"><label>Username</label><input type="text" id="wz-smtp-user"></div>
+              <div class="field"><label>Password / App Token</label><input type="password" id="wz-smtp-pass"></div>
+            </div>
+            <div class="toggle-row" style="margin-top:10px;"><label class="toggle"><input type="checkbox" id="wz-smtp-tls" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span class="toggle-lbl">STARTTLS</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">📥 IMAP — Inbound (IDLE)</div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="field"><label>Server</label><input type="text" id="wz-imap-server" value="imap.qq.com"></div>
+              <div class="field"><label>Port</label><input type="number" id="wz-imap-port" value="993"></div>
+              <div class="field"><label>Username</label><input type="text" id="wz-imap-user"></div>
+              <div class="field"><label>Password / App Token</label><input type="password" id="wz-imap-pass"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Step 2: Test -->
+      <div class="wizard-step-panel" id="wzp2">
+        <div style="font-size:13px;color:var(--muted2);margin-bottom:16px;">Let's verify your email settings are correct before launching the gateway.</div>
+        <div class="card" style="background:var(--bg3);">
+          <div class="card-body">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"><div style="font-size:28px;">📧</div><div><div style="font-weight:600;margin-bottom:2px;">SMTP Connection Test</div><div style="font-size:12px;color:var(--muted2);">Sends a test email from the gateway to itself</div></div></div>
+            <button class="btn btn-blue" id="wz-test-btn" onclick="wzTestSMTP()">Run Test</button>
+            <div class="wizard-test-result" id="wz-test-result"></div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:12px;">💡 If the test fails, check your App Token/Password in the previous step. For QQ Mail and 163 Mail, you must use the "Authorization Code", not your login password.</div>
+      </div>
+      <!-- Step 3: Done -->
+      <div class="wizard-step-panel" id="wzp3">
+        <div style="text-align:center;padding:16px 0;">
+          <div style="font-size:48px;margin-bottom:12px;">🎉</div>
+          <div style="font-size:18px;font-weight:600;margin-bottom:6px;">Setup Complete!</div>
+          <div style="font-size:13px;color:var(--muted2);margin-bottom:20px;">Your gateway is ready. Click <strong>Connect</strong> in the header to go live.</div>
+          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted2);">
+            <div style="margin-bottom:6px;color:var(--accent);">📋 How it works:</div>
+            <div>1. Users email <span style="color:var(--blue)" id="wz-done-email">gateway@example.com</span></div>
+            <div>2. Subject = 6-char node hex prefix (e.g. <span style="color:var(--purple)">a1b2c3</span>)</div>
+            <div>3. Body = message to send over RF</div>
+            <div style="margin-top:6px;">4. RF replies are forwarded back to the sender</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="wizard-footer">
+      <button class="btn btn-ghost" id="wz-back-btn" onclick="wzBack()" style="display:none;">← Back</button>
+      <div class="wz-info" id="wz-info">Step 1 of 4</div>
+      <button class="btn btn-blue" id="wz-next-btn" onclick="wzNext()">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+    </svg>
+    MeshCore Email Gateway
+  </div>
+  <div class="header-right">
+    <span class="sim-badge" id="sim-badge">SIMULATION</span>
+    <div class="pill"><div class="dot" id="hdr-dot"></div><span id="hdr-txt">Disconnected</span></div>
+    <button class="btn btn-ghost btn-sm" onclick="showWizard()" title="Setup Guide">Setup</button>
+    <button class="btn btn-green" id="conn-btn" onclick="toggleConn()">Connect</button>
+  </div>
+</header>
+
+<!-- LAYOUT -->
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Overview</div>
+      <button class="nav-btn active" onclick="nav('dashboard',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-btn" onclick="nav('stats',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Email Statistics
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Messaging</div>
+      <button class="nav-btn" onclick="nav('compose',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Send Email
+      </button>
+      <button class="nav-btn" onclick="nav('templates',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Templates
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Config</div>
+      <button class="nav-btn" onclick="nav('connection',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        Connection
+      </button>
+      <button class="nav-btn" onclick="nav('email',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Email
+      </button>
+      <button class="nav-btn" onclick="nav('errformat',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Replies
+      </button>
+      <button class="nav-btn" onclick="nav('advanced',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        Advanced
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Monitor</div>
+      <button class="nav-btn" onclick="nav('logs',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Logs
+        <span class="err-badge" id="err-badge">0</span>
+      </button>
+      <button class="nav-btn" onclick="nav('contacts',this)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        RF Contacts
+      </button>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- DASHBOARD -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">Gateway runtime status</div>
+      <div class="stats-row">
+        <div class="stat" onclick="nav('stats',document.querySelector('[onclick*=stats]'))"><div class="stat-val" id="s-fwd">0</div><div class="stat-lbl">Email → RF</div><div class="stat-trend" id="s-fwd-trend">—</div></div>
+        <div class="stat" onclick="nav('stats',document.querySelector('[onclick*=stats]'))"><div class="stat-val" id="s-rf">0</div><div class="stat-lbl">RF → Email</div><div class="stat-trend" id="s-rf-trend">—</div></div>
+        <div class="stat"><div class="stat-val" id="s-ct">0</div><div class="stat-lbl">RF Contacts</div></div>
+        <div class="stat"><div class="stat-val" id="s-err" style="color:var(--error)">0</div><div class="stat-lbl">Errors</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Connection Status</div>
+        <div class="card-body">
+          <div class="conn-status-grid">
+            <div class="conn-item"><div class="conn-item-label">RF Transport</div><div class="conn-item-val"><div class="dot" id="rf-dot"></div><span id="rf-txt">Not connected</span></div><div class="conn-item-sub" id="rf-sub"></div></div>
+            <div class="conn-item"><div class="conn-item-label">IMAP IDLE</div><div class="conn-item-val"><div class="dot" id="imap-dot"></div><span id="imap-txt">Idle</span></div><div class="conn-item-sub" id="imap-sub"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Recent Activity</div>
+        <div class="card-body" style="padding:12px 14px;"><div id="mini-log"><span style="color:var(--muted)">No activity yet</span></div></div>
+      </div>
+    </div>
+
+    <!-- EMAIL STATISTICS -->
+    <div class="panel" id="panel-stats">
+      <div class="page-title">Email Statistics</div>
+      <div class="page-sub">Traffic analytics · <span id="stats-session-start">Session started —</span></div>
+      <div class="email-stats-grid" style="margin-bottom:16px;">
+        <div class="email-stat-card"><div class="es-val" id="es-total" style="color:var(--text)">0</div><div class="es-lbl">Total Processed</div></div>
+        <div class="email-stat-card"><div class="es-val" id="es-success" style="color:var(--accent)">0</div><div class="es-lbl">Successful Deliveries</div></div>
+        <div class="email-stat-card"><div class="es-val" id="es-fail" style="color:var(--error)">0</div><div class="es-lbl">Failed / Errors</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head" style="justify-content:space-between;"><span>24-Hour Traffic Chart</span><div class="chart-legend"><div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Email→RF</div><div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>RF→Email</div></div></div>
+        <div class="card-body"><div class="chart-wrap"><div class="chart-bars" id="traffic-chart-bars"></div><div class="chart-labels" id="traffic-chart-labels"></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head" style="justify-content:space-between;"><span>Recent Email History</span><button class="btn btn-ghost btn-sm" onclick="clearEmailHistory()">Clear</button></div>
+        <div class="card-body" style="padding:0;"><div class="recent-emails-list" id="email-history"><div style="text-align:center;padding:28px;color:var(--muted);font-size:13px;">No emails processed yet</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">Rate &amp; Performance</div>
+        <div class="card-body">
+          <div class="rate-grid">
+            <div class="rate-item"><span class="rate-lbl">Avg delivery time</span><span class="rate-val" id="perf-avg">—</span></div>
+            <div class="rate-item"><span class="rate-lbl">Success rate</span><span class="rate-val" id="perf-rate">—</span></div>
+<!--            <div class="rate-item"><span class="rate-lbl">Emails/hour</span><span class="rate-val" id="perf-per-hour">0</span></div>-->
+<!--            <div class="rate-item"><span class="rate-lbl">Uptime</span><span class="rate-val" id="perf-uptime">—</span></div>-->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPOSE / SEND EMAIL -->
+    <div class="panel" id="panel-compose">
+      <div class="page-title">Send Email to RF Node</div>
+      <div class="page-sub">Compose and deliver a message via the gateway</div>
+      <div class="card">
+        <div class="card-head">Select Target Node</div>
+        <div class="card-body">
+          <div style="font-size:12px;color:var(--muted2);margin-bottom:8px;">Click a node to select it as the recipient:</div>
+          <div class="node-chips" id="compose-node-chips"><span style="color:var(--muted);font-size:12px;">Connect to RF network to see contacts</span></div>
+          <div class="field" style="margin-top:12px;">
+            <label>Or enter hex prefix manually</label>
+            <input type="text" id="compose-prefix" placeholder="e.g. a1b2c3" maxlength="6" oninput="this.value=this.value.toLowerCase().replace(/[^0-9a-f]/g,'')">
+            <div class="hint">6-character hexadecimal node prefix</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head" style="justify-content:space-between;"><span>Compose Message</span><div style="display:flex;gap:6px;"><select id="compose-tpl-sel" style="font-size:11px;padding:3px 6px;" onchange="applyComposeTpl()"><option value="">— Load Template —</option></select></div></div>
+        <div class="card-body">
+          <div class="compose-area">
+            <div class="field"><label>From (Sender Email)</label><input type="email" id="compose-from" placeholder="your@email.com"><div class="hint">Will be shown to the RF node recipient</div></div>
+            <div class="field">
+              <label>Message Body</label>
+              <textarea id="compose-body" rows="5" placeholder="Type your message here…"></textarea>
+              <div style="display:flex;justify-content:space-between;margin-top:4px;"><span class="hint" id="compose-byte-counter">0 bytes</span><span class="hint" id="compose-byte-limit"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">Preview RF Packet</div>
+        <div class="card-body"><div class="tpl-preview" id="compose-preview">Select a node and write a message to preview the RF packet…</div></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="sendComposedEmail()" id="compose-send-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send Email
+        </button>
+        <button class="btn btn-ghost" onclick="clearCompose()">Clear</button>
+      </div>
+    </div>
+
+    <!-- TEMPLATES -->
+    <div class="panel" id="panel-templates">
+      <div class="page-title">Message Templates</div>
+      <div class="page-sub">Reusable message formats for common scenarios</div>
+      <div class="card">
+        <div class="card-head" style="justify-content:space-between;"><span>Templates</span><button class="btn btn-blue btn-sm" onclick="newTemplate()">+ New Template</button></div>
+        <div class="card-body" style="padding:12px;"><div class="tpl-list" id="tpl-list"></div></div>
+      </div>
+      <div class="card" id="tpl-editor" style="display:none;">
+        <div class="card-head" id="tpl-editor-title">Edit Template</div>
+        <div class="card-body">
+          <div class="form-grid" style="margin-bottom:12px;">
+            <div class="field"><label>Template Name</label><input type="text" id="tpl-name" placeholder="e.g. Status Request"></div>
+            <div class="field"><label>Icon (emoji)</label><input type="text" id="tpl-icon" placeholder="📋" maxlength="2"></div>
+          </div>
+          <div class="field" style="margin-bottom:12px;"><label>Description</label><input type="text" id="tpl-desc-input" placeholder="What is this template for?"></div>
+          <div class="field"><label>Message Body</label><textarea id="tpl-body" rows="5" placeholder="Use {{variables}} for dynamic content, e.g. {{location}} or {{message}}"></textarea></div>
+          <div style="margin-top:8px;"><div style="font-size:12px;color:var(--muted2);margin-bottom:6px;">Detected variables (click to insert):</div><div class="tpl-vars" id="tpl-vars-detected"></div></div>
+          <div class="btn-row" style="margin-top:14px;">
+            <button class="btn btn-green" onclick="saveTpl()">Save Template</button>
+            <button class="btn btn-ghost" onclick="cancelTplEdit()">Cancel</button>
+            <button class="btn btn-danger" id="tpl-del-btn" onclick="deleteTpl()" style="margin-left:auto;display:none;">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPLY SETTINGS (formerly Error Format) -->
+    <div class="panel" id="panel-errformat">
+      <div class="page-title">Reply Settings</div>
+      <div class="page-sub">Customize outgoing email formats for RF replies and error notifications</div>
+
+      <div class="card">
+        <div class="card-head">Types</div>
+        <div class="card-body">
+          <div class="err-format-tabs">
+            <button class="eftab sel" onclick="selErrTab('invalid-subject',this)">Invalid Subject</button>
+            <button class="eftab" onclick="selErrTab('node-not-found',this)">Node Not Found</button>
+            <button class="eftab" onclick="selErrTab('msg-too-long',this)">Message Too Long</button>
+            <button class="eftab" onclick="selErrTab('delivery-fail',this)">Delivery Failed</button>
+            <button class="eftab" onclick="selErrTab('rf-reply',this)" style="border-color:rgba(63,185,80,0.4);color:var(--accent);">Email Reply</button>
+          </div>
+
+          <!-- Invalid Subject -->
+          <div id="errtab-invalid-subject" class="errtab-panel">
+            <div class="form-grid" style="margin-bottom:12px;">
+              <div class="field"><label>Reply Subject</label><input type="text" id="err-subj-invalid" value="Message delivery failed - Invalid subject format"></div>
+              <div class="field"><label>Send Reply</label><div class="toggle-row" style="margin-top:6px;"><label class="toggle"><input type="checkbox" id="err-send-invalid" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span style="font-size:13px;">Enabled</span></div></div>
+            </div>
+            <div class="field"><label>Reply Body Template</label><textarea id="err-body-invalid" rows="6">Subject must be a 6-char hex node prefix (e.g. "a1b2c3").
+Your subject: "{{user_subject}}"
+
+Known nodes:
+{{known_nodes}}
+
+Please retry with the correct subject format.</textarea></div>
+          </div>
+
+          <!-- Node Not Found -->
+          <div id="errtab-node-not-found" class="errtab-panel" style="display:none;">
+            <div class="form-grid" style="margin-bottom:12px;">
+              <div class="field"><label>Reply Subject</label><input type="text" id="err-subj-notfound" value="Message delivery failed - Node not found"></div>
+              <div class="field"><label>Send Reply</label><div class="toggle-row" style="margin-top:6px;"><label class="toggle"><input type="checkbox" id="err-send-notfound" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span style="font-size:13px;">Enabled</span></div></div>
+            </div>
+            <div class="field"><label>Reply Body Template</label><textarea id="err-body-notfound" rows="6">No RF node found with prefix "{{node_prefix}}".
+
+Known nodes:
+{{known_nodes}}
+
+Check the node prefix and try again.</textarea></div>
+          </div>
+
+          <!-- Message Too Long -->
+          <div id="errtab-msg-too-long" class="errtab-panel" style="display:none;">
+            <div class="form-grid" style="margin-bottom:12px;">
+              <div class="field"><label>Reply Subject</label><input type="text" id="err-subj-toolong" value="Message delivery failed - Message too long"></div>
+              <div class="field"><label>Send Reply</label><div class="toggle-row" style="margin-top:6px;"><label class="toggle"><input type="checkbox" id="err-send-toolong" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span style="font-size:13px;">Enabled</span></div></div>
+            </div>
+            <div class="field"><label>Reply Body Template</label><textarea id="err-body-toolong" rows="6">Your message is too long for RF transmission.
+
+Message size: {{msg_bytes}} bytes
+RF limit: {{max_bytes}} bytes
+
+Please shorten your message and try again.</textarea></div>
+          </div>
+
+          <!-- Delivery Failed -->
+          <div id="errtab-delivery-fail" class="errtab-panel" style="display:none;">
+            <div class="form-grid" style="margin-bottom:12px;">
+              <div class="field"><label>Reply Subject</label><input type="text" id="err-subj-fail" value="Message delivery failed - RF transmission error"></div>
+              <div class="field"><label>Send Reply</label><div class="toggle-row" style="margin-top:6px;"><label class="toggle"><input type="checkbox" id="err-send-fail" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span style="font-size:13px;">Enabled</span></div></div>
+            </div>
+            <div class="field"><label>Reply Body Template</label><textarea id="err-body-fail" rows="6">Failed to deliver your message to {{node_name}} ({{node_prefix}}) over RF.
+
+This may be because the node is out of range or offline.
+Please try again later.</textarea></div>
+          </div>
+
+          <!-- ── NEW: RF → Email Reply ── -->
+          <div id="errtab-rf-reply" class="errtab-panel" style="display:none;">
+            <div class="rf-reply-info">
+              📡 This template controls the email sent to users when an RF node replies to them through the gateway. Disable to suppress all RF→Email forwarding.
+            </div>
+            <div class="form-grid" style="margin-bottom:12px;">
+              <div class="field">
+                <label>Email Subject</label>
+                <input type="text" id="err-subj-rfreply" value="RF message from {{node_name}}">
+              </div>
+              <div class="field">
+                <label>Forward RF Replies</label>
+                <div class="toggle-row" style="margin-top:6px;">
+                  <label class="toggle"><input type="checkbox" id="err-send-rfreply" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label>
+                  <span style="font-size:13px;">Enabled</span>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label>Email Body Template</label>
+              <textarea id="err-body-rfreply" rows="7">{{node_name}} says:
+{{rf_message}}
+
+────────────────────────────────────────
+To reply: email {{gateway_email}} with Subject: {{node_prefix}}</textarea>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Live Preview</div>
+        <div class="card-body">
+          <div class="err-preview-box">
+            <div class="err-preview-subject" id="err-preview-subj">Subject: Message delivery failed - Invalid subject format</div>
+            <div class="err-preview-body" id="err-preview-body"></div>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.8;">
+            <span style="color:var(--muted2);font-weight:600;">Error reply vars:</span>
+            <code style="color:var(--purple)">{{user_subject}}</code>
+            <code style="color:var(--purple)">{{node_prefix}}</code>
+            <code style="color:var(--purple)">{{node_name}}</code>
+            <code style="color:var(--purple)">{{known_nodes}}</code>
+            <code style="color:var(--purple)">{{msg_bytes}}</code>
+            <code style="color:var(--purple)">{{max_bytes}}</code>
+            &nbsp;&nbsp;
+            <span style="color:var(--accent);font-weight:600;">RF Reply only:</span>
+            <code style="color:var(--accent)">{{rf_message}}</code>
+            <code style="color:var(--accent)">{{gateway_email}}</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="saveErrFormats()">Save Reply Settings</button>
+        <button class="btn btn-ghost" onclick="resetErrFormats()">Reset to Defaults</button>
+      </div>
+    </div>
+
+    <!-- CONNECTION -->
+    <div class="panel" id="panel-connection">
+      <div class="page-title">Connection</div>
+      <div class="page-sub">RF transport settings</div>
+      <div class="card">
+        <div class="card-head">Transport Type</div>
+        <div class="card-body">
+          <div class="transport-grid">
+            <label class="tr-card sel" onclick="selTr('ble',this)"><input type="radio" name="tr" value="ble" checked><div class="tr-icon">🔵</div><div class="tr-lbl">BLE</div></label>
+            <label class="tr-card" onclick="selTr('serial',this)"><input type="radio" name="tr" value="serial"><div class="tr-icon">🔌</div><div class="tr-lbl">Serial</div></label>
+            <label class="tr-card" onclick="selTr('tcp',this)"><input type="radio" name="tr" value="tcp"><div class="tr-icon">🌐</div><div class="tr-lbl">TCP</div></label>
+          </div>
+        </div>
+      </div>
+      <div class="card sect on" id="sect-ble"><div class="card-head">BLE Settings</div><div class="card-body"><div class="form-grid"><div class="field"><label>BLE Address</label><input type="text" id="ble-address" placeholder="AA:BB:CC:DD:EE:FF (blank = auto)"><div class="hint">Leave blank to auto-scan</div></div><div class="field"><label>PIN</label><input type="text" id="ble-pin" placeholder="(none)"></div></div></div></div>
+      <div class="card sect" id="sect-serial"><div class="card-head">Serial Settings</div><div class="card-body"><div class="form-grid"><div class="field"><label>Port</label><input type="text" id="serial-port" value="/dev/ttyUSB0"></div><div class="field"><label>Baud Rate</label><select id="serial-baud"><option>9600</option><option>57600</option><option selected>115200</option><option>230400</option></select></div></div></div></div>
+      <div class="card sect" id="sect-tcp"><div class="card-head">TCP Settings</div><div class="card-body"><div class="form-grid"><div class="field"><label>Host</label><input type="text" id="tcp-host" value="192.168.1.100"></div><div class="field"><label>Port</label><input type="number" id="tcp-port" value="4000"></div></div><div class="toggle-row" style="margin-top:12px;"><label class="toggle"><input type="checkbox" id="tcp-reconnect" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span class="toggle-lbl">Auto Reconnect</span></div></div></div>
+      <div class="btn-row"><button class="btn btn-green" onclick="saveConfig()">Save Changes</button><button class="btn btn-ghost" onclick="testConn()">Test Connection</button></div>
+    </div>
+
+    <!-- EMAIL CONFIG -->
+    <div class="panel" id="panel-email">
+      <div class="page-title">Email Config</div>
+      <div class="page-sub">SMTP outbound · IMAP inbound</div>
+      <div class="card"><div class="card-head">Agent Identity</div><div class="card-body"><div class="form-grid full"><div class="field"><label>Gateway Email Address</label><input type="email" id="agent-email" placeholder="gateway@example.com"></div></div></div></div>
+      <div class="card">
+        <div class="card-head">SMTP — Outbound</div>
+        <div class="card-body">
+          <div class="form-grid"><div class="field"><label>Server</label><input type="text" id="smtp-server" value="smtp.qq.com"></div><div class="field"><label>Port</label><input type="number" id="smtp-port" value="587"></div><div class="field"><label>Username</label><input type="text" id="smtp-user"></div><div class="field"><label>Password / App Token</label><input type="password" id="smtp-pass"></div></div>
+          <div class="toggle-row" style="margin-top:12px;"><label class="toggle"><input type="checkbox" id="smtp-tls" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span class="toggle-lbl">STARTTLS</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-head">IMAP — Inbound (IDLE)</div><div class="card-body"><div class="form-grid"><div class="field"><label>Server</label><input type="text" id="imap-server" value="imap.qq.com"></div><div class="field"><label>Port</label><input type="number" id="imap-port" value="993"></div><div class="field"><label>Username</label><input type="text" id="imap-user"></div><div class="field"><label>Password / App Token</label><input type="password" id="imap-pass"></div></div></div></div>
+      <div class="btn-row"><button class="btn btn-green" onclick="saveConfig()">Save Changes</button><button class="btn btn-ghost" onclick="testSMTP()">Send Test Email</button></div>
+    </div>
+
+    <!-- ADVANCED -->
+    <div class="panel" id="panel-advanced">
+      <div class="page-title">Advanced</div>
+      <div class="page-sub">RF parameters · debug · export</div>
+      <div class="card"><div class="card-head">RF Parameters</div><div class="card-body"><div class="form-grid"><div class="field"><label>Max Message Bytes</label><input type="number" id="rf-max" value="200"><div class="hint">Max payload per RF packet</div></div><div class="field"><label>IDLE Timeout (seconds)</label><input type="number" id="idle-to" value="1740"><div class="hint">RFC max: 1740s (29 min)</div></div></div></div></div>
+      <div class="card"><div class="card-head">Debug</div><div class="card-body"><div class="toggle-row"><label class="toggle"><input type="checkbox" id="debug-mode" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span class="toggle-lbl">Verbose debug logging</span></div></div></div>
+      <div class="card"><div class="card-head">Config Export</div><div class="card-body"><p style="font-size:13px;color:var(--muted2);margin-bottom:12px;">Export current settings as a Python snippet to paste into your script.</p><div class="btn-row"><button class="btn btn-ghost" onclick="exportPy()">Export config.py</button><button class="btn btn-danger" onclick="resetCfg()">Reset to Defaults</button></div></div></div>
+      <div class="btn-row"><button class="btn btn-green" onclick="saveConfig()">Save Changes</button></div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="panel" id="panel-logs">
+      <div class="page-title">Logs</div>
+      <div class="page-sub">Realtime log stream</div>
+      <div class="log-bar">
+        <button class="filter-btn fa" onclick="setFilter('ALL',this)">ALL</button>
+        <button class="filter-btn" onclick="setFilter('INFO',this)">INFO</button>
+        <button class="filter-btn" onclick="setFilter('WARN',this)">WARN</button>
+        <button class="filter-btn" onclick="setFilter('ERROR',this)">ERROR</button>
+        <button class="filter-btn" onclick="setFilter('DEBUG',this)">DEBUG</button>
+        <span style="flex:1"></span>
+        <label class="toggle-row" style="gap:8px;cursor:pointer;"><label class="toggle"><input type="checkbox" id="auto-scroll" checked><div class="toggle-track"><div class="toggle-thumb"></div></div></label><span style="font-size:12px;color:var(--muted2);">Auto-scroll</span></label>
+        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="clearLog()">Clear</button>
+        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="dlLog()">Export</button>
+      </div>
+      <div id="logbox"><span style="color:var(--muted)">Waiting for logs…</span></div>
+    </div>
+
+    <!-- CONTACTS -->
+    <div class="panel" id="panel-contacts">
+      <div class="page-title">RF Contacts</div>
+      <div class="page-sub"><span id="ct-count">0</span> nodes discovered</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="reloadContacts()">Refresh</button></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Node Name</th><th>Key Prefix</th><th>Last Seen</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="ct-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px;">Connect to RF network first</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="ws-bar">
+  <div class="ws-dot" id="ws-dot"></div>
+  <span id="ws-txt">WebSocket disconnected</span>
+  <span style="margin-left:auto;color:var(--muted)">MeshCore Gateway v1.1</span>
+</div>
+
+<div class="toast" id="toast">✓ <span id="toast-msg"></span></div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG & STATE
+// ═══════════════════════════════════════════
+const API = location.origin;
+const WS_URL = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws';
+
+let st = {
+  running: false, rf: false, imap: false,
+  stats: {email_to_rf:0, rf_to_email:0, errors:0, contacts:0},
+  contacts: [],
+  logFilter: 'ALL',
+  errCount: 0,
+  logs: [],
+};
+let ws = null;
+
+let emailHistory = JSON.parse(localStorage.getItem('mesh_email_history') || '[]');
+let sessionStart = Date.now();
+let hourlyBuckets = Array(24).fill(null).map(() => ({out:0, in:0}));
+let templates = JSON.parse(localStorage.getItem('mesh_templates') || 'null') || defaultTemplates();
+let editingTplIdx = -1;
+let errFormats = JSON.parse(localStorage.getItem('mesh_err_formats') || 'null') || defaultErrFormats();
+let selectedNodePrefix = '';
+
+// ═══════════════════════════════════════════
+// DEFAULT DATA
+// ═══════════════════════════════════════════
+function defaultTemplates() {
+  return [
+    { name:'Status Request', icon:'📡', desc:'Ask a node for its status', body:'Status report requested. Please reply with your current location and battery level.' },
+    { name:'Emergency Alert', icon:'🚨', desc:'Send urgent notification', body:'EMERGENCY: {{message}}\nSent at {{time}} from {{sender}}' },
+    { name:'Check-In', icon:'✅', desc:'Routine check-in message', body:'Check-in from {{sender}}. All OK. Time: {{time}}' },
+    { name:'Route Info Request', icon:'🗺️', desc:'Request navigation data', body:'Please provide route info to {{destination}}. Current position: {{location}}' },
+  ];
+}
+
+function defaultErrFormats() {
+  return {
+    'invalid-subject': {
+      subject: 'Message delivery failed - Invalid subject format',
+      body: 'Subject must be a 6-char hex node prefix (e.g. "a1b2c3").\nYour subject: "{{user_subject}}"\n\nKnown nodes:\n{{known_nodes}}\n\nPlease retry with the correct subject format.',
+      enabled: true
+    },
+    'node-not-found': {
+      subject: 'Message delivery failed - Node not found',
+      body: 'No RF node found with prefix "{{node_prefix}}".\n\nKnown nodes:\n{{known_nodes}}\n\nCheck the node prefix and try again.',
+      enabled: true
+    },
+    'msg-too-long': {
+      subject: 'Message delivery failed - Message too long',
+      body: 'Your message is too long for RF transmission.\n\nMessage size: {{msg_bytes}} bytes\nRF limit: {{max_bytes}} bytes\n\nPlease shorten your message and try again.',
+      enabled: true
+    },
+    'delivery-fail': {
+      subject: 'Message delivery failed - RF transmission error',
+      body: 'Failed to deliver your message to {{node_name}} ({{node_prefix}}) over RF.\n\nThis may be because the node is out of range or offline.\nPlease try again later.',
+      enabled: true
+    },
+    'rf-reply': {
+      subject: 'RF message from {{node_name}}',
+      body: '{{node_name}} says:\n{{rf_message}}\n\n────────────────────────────────────────\nTo reply: email {{gateway_email}} with Subject: {{node_prefix}}',
+      enabled: true
+    },
+  };
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════
+function nav(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  if (btn && btn.classList) btn.classList.add('active');
+  if (id === 'logs') { st.errCount = 0; updErrBadge(); }
+  if (id === 'stats') { renderStats(); }
+  if (id === 'compose') { renderComposeNodes(); updateComposePreview(); }
+  if (id === 'templates') { renderTemplates(); }
+  if (id === 'errformat') { updateErrPreview(); }
+}
+
+// ═══════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => { document.getElementById('ws-dot').classList.add('ok'); document.getElementById('ws-txt').textContent = 'WebSocket connected'; };
+  ws.onclose = () => { document.getElementById('ws-dot').classList.remove('ok'); document.getElementById('ws-txt').textContent = 'WebSocket disconnected — reconnecting…'; setTimeout(connectWS, 3000); };
+  ws.onerror = () => {};
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.type === 'init') { applyStatus(d.status); applyStats(d.stats); (d.logs || []).forEach(appendLog); applyContacts(d.contacts || []); }
+    else if (d.type === 'log') { appendLog(d); }
+    else if (d.type === 'status') { applyStatus(d); }
+    else if (d.type === 'stats') { applyStats(d.stats); }
+  };
+}
+
+// ═══════════════════════════════════════════
+// STATUS
+// ═══════════════════════════════════════════
+function applyStatus(s) {
+  st.running = s.running ?? st.running;
+  st.rf      = s.rf ?? st.rf;
+  st.imap    = s.imap ?? st.imap;
+  const dot = document.getElementById('hdr-dot'), txt = document.getElementById('hdr-txt'), btn = document.getElementById('conn-btn');
+  if (st.running) { dot.className = 'dot ok'; txt.textContent = 'Connected'; btn.textContent = 'Disconnect'; btn.className = 'btn btn-danger'; if (!sessionStart) sessionStart = Date.now(); }
+  else { dot.className = 'dot'; txt.textContent = 'Disconnected'; btn.textContent = 'Connect'; btn.className = 'btn btn-green'; }
+  const rDot = document.getElementById('rf-dot'), rTxt = document.getElementById('rf-txt');
+  if (st.rf) { rDot.className='dot ok'; rTxt.textContent='Connected'; rTxt.style.color='var(--accent)'; } else { rDot.className='dot'; rTxt.textContent='Not connected'; rTxt.style.color='var(--muted2)'; }
+  const iDot = document.getElementById('imap-dot'), iTxt = document.getElementById('imap-txt');
+  if (st.imap) { iDot.className='dot ok'; iTxt.textContent='IDLE Active'; iTxt.style.color='var(--accent)'; document.getElementById('imap-sub').textContent='Waiting for push…'; }
+  else { iDot.className='dot'; iTxt.textContent='Idle'; iTxt.style.color='var(--muted2)'; document.getElementById('imap-sub').textContent=''; }
+  if (s.simulation) document.getElementById('sim-badge').style.display = 'inline';
+}
+
+function applyStats(stats) {
+  const prev = {...st.stats};
+  st.stats = stats;
+  document.getElementById('s-fwd').textContent  = stats.email_to_rf ?? 0;
+  document.getElementById('s-rf').textContent   = stats.rf_to_email ?? 0;
+  document.getElementById('s-ct').textContent   = stats.contacts ?? 0;
+  document.getElementById('s-err').textContent  = stats.errors ?? 0;
+  const delta_out = (stats.email_to_rf || 0) - (prev.email_to_rf || 0);
+  const delta_in  = (stats.rf_to_email || 0) - (prev.rf_to_email || 0);
+  if (delta_out > 0 || delta_in > 0) {
+    const h = new Date().getHours();
+    hourlyBuckets[h].out += delta_out;
+    hourlyBuckets[h].in  += delta_in;
+    if (document.getElementById('panel-stats').classList.contains('active')) renderChart();
+  }
+}
+
+// ═══════════════════════════════════════════
+// CONNECT / DISCONNECT
+// ═══════════════════════════════════════════
+async function toggleConn() {
+  if (st.running) {
+    await api('POST', '/api/disconnect'); toast('Disconnected');
+  } else {
+    await saveConfig(true);
+    const res = await api('POST', '/api/connect');
+    if (res.ok) {
+      document.getElementById('hdr-dot').className = 'dot spin';
+      document.getElementById('hdr-txt').textContent = 'Connecting…';
+      document.getElementById('conn-btn').disabled = true;
+      setTimeout(() => document.getElementById('conn-btn').disabled = false, 3000);
+      toast('Connecting…');
+    } else { toast('Connect failed: ' + (res.detail || 'unknown'), true); }
+  }
+}
+
+async function api(method, path, body) {
+  try {
+    const r = await fetch(API + path, { method, headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined });
+    return await r.json();
+  } catch(e) { return {error: e.message}; }
+}
+
+// ═══════════════════════════════════════════
+// CONFIG LOAD / SAVE
+// ═══════════════════════════════════════════
+async function loadConfig() {
+  const cfg = await api('GET', '/api/config');
+  if (cfg.error) return;
+  set('agent-email', cfg.agent_email);
+  set('smtp-server', cfg.smtp_server); set('smtp-port', cfg.smtp_port);
+  set('smtp-user', cfg.smtp_user); set('smtp-pass', cfg.smtp_password);
+  setChk('smtp-tls', cfg.smtp_use_tls);
+  set('imap-server', cfg.imap_server); set('imap-port', cfg.imap_port);
+  set('imap-user', cfg.imap_user); set('imap-pass', cfg.imap_password);
+  set('ble-address', cfg.ble_address || ''); set('ble-pin', cfg.ble_pin || '');
+  set('serial-port', cfg.serial_port); set('serial-baud', cfg.serial_baudrate);
+  set('tcp-host', cfg.tcp_host); set('tcp-port', cfg.tcp_port);
+  setChk('tcp-reconnect', cfg.tcp_auto_reconnect);
+  set('rf-max', cfg.rf_max_message_bytes); set('idle-to', cfg.idle_timeout);
+  setChk('debug-mode', cfg.debug);
+  selTrName(cfg.connection_type || 'ble');
+  if (cfg.error_formats) {
+    errFormats = {...defaultErrFormats(), ...cfg.error_formats};
+    loadErrFormats();
+  }
+  const hasEmail = cfg.agent_email && cfg.agent_email.length > 0;
+  if (!hasEmail && !sessionStorage.getItem('wizard_shown')) setTimeout(showWizard, 400);
+}
+
+async function saveConfig(silent = false) {
+  const cfg = {
+    connection_type: document.querySelector('.tr-card.sel input')?.value || 'ble',
+    ble_address: get('ble-address'), ble_pin: get('ble-pin'),
+    serial_port: get('serial-port'), serial_baudrate: parseInt(get('serial-baud')) || 115200,
+    tcp_host: get('tcp-host'), tcp_port: parseInt(get('tcp-port')) || 4000,
+    tcp_auto_reconnect: getChk('tcp-reconnect'),
+    agent_email: get('agent-email'),
+    smtp_server: get('smtp-server'), smtp_port: parseInt(get('smtp-port')) || 587,
+    smtp_user: get('smtp-user'), smtp_password: get('smtp-pass'),
+    smtp_use_tls: getChk('smtp-tls'),
+    imap_server: get('imap-server'), imap_port: parseInt(get('imap-port')) || 993,
+    imap_user: get('imap-user'), imap_password: get('imap-pass'),
+    rf_max_message_bytes: parseInt(get('rf-max')) || 200,
+    idle_timeout: parseInt(get('idle-to')) || 1740,
+    debug: getChk('debug-mode'),
+    error_formats: errFormats,
+  };
+  const res = await api('POST', '/api/config', cfg);
+  if (!silent) toast(res.ok ? 'Settings saved' : 'Save failed', !res.ok);
+  return res;
+}
+
+// ═══════════════════════════════════════════
+// TRANSPORT SELECTOR
+// ═══════════════════════════════════════════
+function selTr(name, el) {
+  document.querySelectorAll('.tr-card').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+  document.querySelectorAll('.sect').forEach(s => s.classList.remove('on'));
+  const s = document.getElementById('sect-' + name);
+  if (s) s.classList.add('on');
+}
+function selTrName(name) {
+  document.querySelectorAll('.tr-card').forEach(c => {
+    const inp = c.querySelector('input');
+    inp && inp.value === name ? c.classList.add('sel') : c.classList.remove('sel');
+  });
+  document.querySelectorAll('.sect').forEach(s => s.classList.remove('on'));
+  const s = document.getElementById('sect-' + name);
+  if (s) s.classList.add('on');
+}
+
+// ═══════════════════════════════════════════
+// WIZARD
+// ═══════════════════════════════════════════
+let wzStep = 0;
+const WZ_STEPS = 4;
+function showWizard() { wzStep = 0; sessionStorage.setItem('wizard_shown','1'); document.getElementById('wizard').style.display='flex'; wzRender(); }
+function hideWizard() { document.getElementById('wizard').style.display='none'; }
+function wzRender() {
+  document.querySelectorAll('.wizard-step-panel').forEach((p,i) => p.classList.toggle('active', i===wzStep));
+  for (let i=0;i<WZ_STEPS;i++) { const el=document.getElementById('ws'+i); if(!el)continue; el.className='wstep'+(i<wzStep?' done':i===wzStep?' active':''); el.querySelector('.wstep-num').textContent=i<wzStep?'✓':i+1; }
+  document.getElementById('wz-back-btn').style.display = wzStep > 0 ? 'inline-flex' : 'none';
+  document.getElementById('wz-info').textContent = `Step ${wzStep+1} of ${WZ_STEPS}`;
+  const nextBtn = document.getElementById('wz-next-btn');
+  if (wzStep===WZ_STEPS-1) { nextBtn.textContent='Finish ✓'; nextBtn.className='btn btn-green'; } else { nextBtn.textContent='Next →'; nextBtn.className='btn btn-blue'; }
+}
+async function wzNext() {
+  if (wzStep===WZ_STEPS-1) { await wzApplyToConfig(); hideWizard(); toast('Setup complete! Click Connect to start.'); return; }
+  if (wzStep===1) {
+    set('agent-email',get('wz-agent-email')); set('smtp-server',get('wz-smtp-server')); set('smtp-port',get('wz-smtp-port'));
+    set('smtp-user',get('wz-smtp-user')); set('smtp-pass',get('wz-smtp-pass')); setChk('smtp-tls',getChk('wz-smtp-tls'));
+    set('imap-server',get('wz-imap-server')); set('imap-port',get('wz-imap-port')); set('imap-user',get('wz-imap-user')); set('imap-pass',get('wz-imap-pass'));
+    const doneEmail=document.getElementById('wz-done-email'); if(doneEmail) doneEmail.textContent=get('wz-agent-email')||'gateway@example.com';
+  }
+  wzStep++; wzRender();
+}
+function wzBack() { if(wzStep>0){wzStep--;wzRender();} }
+async function wzApplyToConfig() {
+  const selTrEl=document.querySelector('#wzp0 .tr-card.sel input');
+  if(selTrEl) selTrName(selTrEl.value);
+  set('ble-address',get('wz-ble-addr')); set('ble-pin',get('wz-ble-pin'));
+  set('serial-port',get('wz-serial-port')); set('serial-baud',get('wz-serial-baud'));
+  set('tcp-host',get('wz-tcp-host')); set('tcp-port',get('wz-tcp-port'));
+  await saveConfig(true);
+}
+function wzSelTr(name,el) {
+  document.querySelectorAll('#wzp0 .tr-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  document.querySelectorAll('.wz-sect').forEach(s=>s.style.display='none');
+  const s=document.getElementById('wz-sect-'+name); if(s) s.style.display='block';
+}
+async function wzTestSMTP() {
+  set('smtp-server',get('wz-smtp-server')); set('smtp-port',get('wz-smtp-port'));
+  set('smtp-user',get('wz-smtp-user')); set('smtp-pass',get('wz-smtp-pass'));
+  set('agent-email',get('wz-agent-email')); setChk('smtp-tls',getChk('wz-smtp-tls'));
+  await saveConfig(true);
+  const btn=document.getElementById('wz-test-btn'), res=document.getElementById('wz-test-result');
+  btn.disabled=true; btn.innerHTML='<span class="spin-anim">⟳</span> Testing…'; res.style.display='none';
+  const r=await api('POST','/api/test/smtp');
+  btn.disabled=false; btn.textContent='Run Test'; res.style.display='block';
+  if(r.ok){res.className='wizard-test-result ok';res.textContent='✓ '+r.message;}
+  else{res.className='wizard-test-result err';res.textContent='✗ '+(r.detail||r.error||'Unknown error');}
+}
+
+// ═══════════════════════════════════════════
+// EMAIL STATISTICS
+// ═══════════════════════════════════════════
+function addEmailHistory(entry) {
+  emailHistory.unshift({...entry,ts:Date.now()});
+  if(emailHistory.length>200) emailHistory=emailHistory.slice(0,200);
+  try{localStorage.setItem('mesh_email_history',JSON.stringify(emailHistory));}catch(e){}
+  renderEmailHistory(); renderStats();
+}
+function renderStats() {
+  const total=(st.stats.email_to_rf||0)+(st.stats.rf_to_email||0), fail=st.stats.errors||0, ok=total-fail;
+  document.getElementById('es-total').textContent=total;
+  document.getElementById('es-success').textContent=Math.max(0,ok);
+  document.getElementById('es-fail').textContent=fail;
+  const rate=total>0?((ok/total)*100).toFixed(1)+'%':'—';
+  document.getElementById('perf-rate').textContent=rate;
+  const elapsed=(Date.now()-sessionStart)/3600000;
+  document.getElementById('perf-per-hour').textContent=elapsed>0?(total/elapsed).toFixed(1):'0';
+  document.getElementById('perf-uptime').textContent=st.running?fmtUptime(Date.now()-sessionStart):'—';
+  document.getElementById('stats-session-start').textContent='Session: '+new Date(sessionStart).toLocaleTimeString();
+  renderChart(); renderEmailHistory();
+}
+function renderChart() {
+  const barsEl=document.getElementById('traffic-chart-bars'), labelsEl=document.getElementById('traffic-chart-labels');
+  if(!barsEl||!labelsEl) return;
+  const nowHour=new Date().getHours(), maxVal=Math.max(1,...hourlyBuckets.map(b=>b.out+b.in)), H=120;
+  barsEl.innerHTML=''; labelsEl.innerHTML='';
+  for(let h=0;h<24;h++){
+    const b=hourlyBuckets[h], outPx=Math.round((b.out/maxVal)*H), inPx=Math.round((b.in/maxVal)*H), isCur=h===nowHour;
+    const grp=document.createElement('div'); grp.className='chart-bar-group'; grp.title=`${String(h).padStart(2,'0')}:00  ↑${b.out} ↓${b.in}`;
+    const pair=document.createElement('div'); pair.className='bar-pair'; pair.style.height=H+'px';
+    const bOut=document.createElement('div'); bOut.className='bar b-green'; bOut.style.height=(b.out>0?Math.max(outPx,3):0)+'px'; bOut.style.alignSelf='flex-end'; if(isCur) bOut.style.opacity='1';
+    const bIn=document.createElement('div'); bIn.className='bar b-blue'; bIn.style.height=(b.in>0?Math.max(inPx,3):0)+'px'; bIn.style.alignSelf='flex-end'; if(isCur) bIn.style.opacity='1';
+    pair.appendChild(bOut); pair.appendChild(bIn); grp.appendChild(pair); barsEl.appendChild(grp);
+    const lbl=document.createElement('div'); lbl.className='chart-label';
+    if(h%3===0||isCur){lbl.textContent=String(h).padStart(2,'0')+':00'; if(isCur) lbl.style.color='var(--accent)';}
+    labelsEl.appendChild(lbl);
+  }
+}
+function renderEmailHistory() {
+  const cont=document.getElementById('email-history');
+  if(!emailHistory.length){cont.innerHTML='<div style="text-align:center;padding:28px;color:var(--muted);font-size:13px;">No emails processed yet</div>';return;}
+  const icons={in:'↓',out:'↑',err:'✗'};
+  cont.innerHTML=emailHistory.slice(0,50).map(e=>{
+    const t=new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="email-row"><div class="email-dir ${e.dir}">${icons[e.dir]||'?'}</div><div class="email-meta"><div class="email-subj">${esc(e.subject||'(no subject)')}</div><div class="email-from">${esc(e.from||'')} ${e.node?'→ '+e.node:''}</div></div><div class="email-time">${t}</div></div>`;
+  }).join('');
+}
+function clearEmailHistory(){emailHistory=[];localStorage.removeItem('mesh_email_history');renderEmailHistory();}
+function fmtUptime(ms){const s=Math.floor(ms/1000);if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m '+(s%60)+'s';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
+setInterval(()=>{
+  if(st.running){
+    document.getElementById('perf-uptime').textContent=fmtUptime(Date.now()-sessionStart);
+    document.getElementById('perf-per-hour').textContent=(()=>{const total=(st.stats.email_to_rf||0)+(st.stats.rf_to_email||0),elapsed=(Date.now()-sessionStart)/3600000;return elapsed>0?(total/elapsed).toFixed(1):'0';})();
+  }
+},10000);
+
+// ═══════════════════════════════════════════
+// COMPOSE EMAIL
+// ═══════════════════════════════════════════
+function renderComposeNodes() {
+  const cont=document.getElementById('compose-node-chips'), sel=document.getElementById('compose-tpl-sel');
+  sel.innerHTML='<option value="">— Load Template —</option>';
+  templates.forEach((t,i)=>{const o=document.createElement('option');o.value=i;o.textContent=t.icon+' '+t.name;sel.appendChild(o);});
+  if(!st.contacts.length){cont.innerHTML='<span style="color:var(--muted);font-size:12px;">Connect to RF network to see contacts</span>';return;}
+  cont.innerHTML='';
+  st.contacts.forEach(c=>{
+    const name=c.adv_name||c.name||'Unknown', pfx=(c.public_key||'').slice(0,6).toLowerCase();
+    const chip=document.createElement('div'); chip.className='node-chip'+(pfx===selectedNodePrefix?' selected':'');
+    chip.textContent=name+' · '+pfx;
+    chip.onclick=()=>{selectedNodePrefix=pfx;set('compose-prefix',pfx);document.querySelectorAll('.node-chip').forEach(ch=>ch.classList.remove('selected'));chip.classList.add('selected');updateComposePreview();};
+    cont.appendChild(chip);
+  });
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const bodyEl=document.getElementById('compose-body'), prefEl=document.getElementById('compose-prefix'), fromEl=document.getElementById('compose-from');
+  if(bodyEl) bodyEl.addEventListener('input',updateComposePreview);
+  if(prefEl) prefEl.addEventListener('input',updateComposePreview);
+  if(fromEl) fromEl.addEventListener('input',updateComposePreview);
+});
+function updateComposePreview() {
+  const from=get('compose-from')||'sender@example.com', prefix=get('compose-prefix'), body=get('compose-body');
+  const maxBytes=parseInt(get('rf-max'))||200, packet=from+' '+body, bytes=new TextEncoder().encode(packet).length;
+  document.getElementById('compose-byte-counter').textContent=bytes+' bytes';
+  document.getElementById('compose-byte-limit').textContent='RF limit: '+maxBytes+' bytes';
+  document.getElementById('compose-byte-counter').style.color=bytes>maxBytes?'var(--error)':'var(--muted)';
+  const prev=document.getElementById('compose-preview');
+  if(!prefix||!body){prev.textContent='Select a node and write a message to preview the RF packet…';return;}
+  prev.textContent=`TO:   [node:${prefix}]\nFROM: ${from}\nDATA: ${packet}\nSIZE: ${bytes} bytes${bytes>maxBytes?' ⚠ TOO LONG':' ✓'}`;
+}
+function applyComposeTpl() {
+  const sel=document.getElementById('compose-tpl-sel'), idx=parseInt(sel.value);
+  if(isNaN(idx)||!templates[idx]) return;
+  let body=templates[idx].body;
+  body=body.replace(/\{\{time\}\}/g,new Date().toLocaleTimeString());
+  body=body.replace(/\{\{sender\}\}/g,get('compose-from')||'gateway');
+  body=body.replace(/\{\{gateway_email\}\}/g,get('agent-email')||'gateway@example.com');
+  const pfx=get('compose-prefix');
+  if(pfx){const contact=st.contacts.find(c=>(c.public_key||'').toLowerCase().startsWith(pfx));const nodeName=contact?(contact.adv_name||pfx):pfx;body=body.replace(/\{\{node_name\}\}/g,nodeName);body=body.replace(/\{\{node_prefix\}\}/g,pfx);}
+  set('compose-body',body); updateComposePreview(); sel.value='';
+}
+async function sendComposedEmail() {
+  const prefix=get('compose-prefix'), from=get('compose-from'), body=get('compose-body');
+  if(!prefix||prefix.length!==6){toast('Enter a 6-char node prefix',true);return;}
+  if(!from){toast('Enter sender email',true);return;}
+  if(!body.trim()){toast('Message body is empty',true);return;}
+  const btn=document.getElementById('compose-send-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin-anim">⟳</span> Sending…';
+  const res=await api('POST','/api/send_email',{to_prefix:prefix,from_email:from,body});
+  btn.disabled=false; btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send Email';
+  if(res.ok){toast('Email sent to RF node '+prefix);addEmailHistory({dir:'out',subject:'To: '+prefix,from,node:prefix,ts:Date.now()});clearCompose();}
+  else{toast('Send failed: '+(res.detail||res.error||'unknown'),true);addEmailHistory({dir:'err',subject:'Failed → '+prefix,from,node:prefix,ts:Date.now()});}
+}
+function clearCompose(){set('compose-prefix','');set('compose-body','');selectedNodePrefix='';document.querySelectorAll('.node-chip').forEach(c=>c.classList.remove('selected'));updateComposePreview();}
+
+// ═══════════════════════════════════════════
+// TEMPLATES
+// ═══════════════════════════════════════════
+function renderTemplates() {
+  const list=document.getElementById('tpl-list');
+  if(!templates.length){list.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">No templates yet. Click "+ New Template".</div>';return;}
+  list.innerHTML=templates.map((t,i)=>`<div class="tpl-item" id="tpl-item-${i}"><div class="tpl-icon">${esc(t.icon||'📋')}</div><div class="tpl-info"><div class="tpl-name">${esc(t.name)}</div><div class="tpl-desc">${esc(t.desc||'')}</div></div><div class="tpl-actions"><button class="btn btn-ghost btn-sm" onclick="editTpl(${i})">Edit</button><button class="btn btn-green btn-sm" onclick="useTemplate(${i})">Use</button></div></div>`).join('');
+}
+function newTemplate(){editingTplIdx=-1;set('tpl-name','');set('tpl-icon','📋');set('tpl-desc-input','');set('tpl-body','');document.getElementById('tpl-editor-title').textContent='New Template';document.getElementById('tpl-del-btn').style.display='none';document.getElementById('tpl-editor').style.display='block';document.getElementById('tpl-editor').scrollIntoView({behavior:'smooth'});detectTplVars();}
+function editTpl(idx){editingTplIdx=idx;const t=templates[idx];set('tpl-name',t.name);set('tpl-icon',t.icon||'📋');set('tpl-desc-input',t.desc||'');set('tpl-body',t.body||'');document.getElementById('tpl-editor-title').textContent='Edit Template';document.getElementById('tpl-del-btn').style.display='inline-flex';document.getElementById('tpl-editor').style.display='block';document.getElementById('tpl-editor').scrollIntoView({behavior:'smooth'});detectTplVars();}
+function cancelTplEdit(){document.getElementById('tpl-editor').style.display='none';}
+document.addEventListener('DOMContentLoaded',()=>{const tplBodyEl=document.getElementById('tpl-body');if(tplBodyEl) tplBodyEl.addEventListener('input',detectTplVars);});
+function detectTplVars(){const body=get('tpl-body');const vars=[...new Set([...body.matchAll(/\{\{(\w+)\}\}/g)].map(m=>m[1]))];const cont=document.getElementById('tpl-vars-detected');cont.innerHTML=vars.length?vars.map(v=>`<span class="tpl-var" onclick="insertVar('{{${v}}}')">${v}</span>`).join(''):'<span style="color:var(--muted);font-size:12px;">No variables found. Use {{variable}} syntax.</span>';}
+function insertVar(v){const el=document.getElementById('tpl-body');const pos=el.selectionStart;el.value=el.value.slice(0,pos)+v+el.value.slice(el.selectionEnd);el.selectionStart=el.selectionEnd=pos+v.length;el.focus();detectTplVars();}
+function saveTpl(){const name=get('tpl-name').trim();if(!name){toast('Template name required',true);return;}const t={name,icon:get('tpl-icon')||'📋',desc:get('tpl-desc-input'),body:get('tpl-body')};if(editingTplIdx>=0){templates[editingTplIdx]=t;}else{templates.push(t);}saveTemplates();renderTemplates();cancelTplEdit();toast('Template saved');}
+function deleteTpl(){if(editingTplIdx<0) return;if(!confirm('Delete this template?')) return;templates.splice(editingTplIdx,1);saveTemplates();renderTemplates();cancelTplEdit();toast('Template deleted');}
+function useTemplate(idx){const navBtn=document.querySelector('.nav-btn[onclick*="compose"]');nav('compose',navBtn);setTimeout(()=>{renderComposeNodes();let body=templates[idx].body;body=body.replace(/\{\{time\}\}/g,new Date().toLocaleTimeString());body=body.replace(/\{\{sender\}\}/g,get('compose-from')||'gateway');body=body.replace(/\{\{gateway_email\}\}/g,get('agent-email')||'gateway@example.com');set('compose-body',body);updateComposePreview();toast('Template "'+templates[idx].name+'" applied');},100);}
+function saveTemplates(){try{localStorage.setItem('mesh_templates',JSON.stringify(templates));}catch(e){}}
+
+// ═══════════════════════════════════════════
+// ERROR FORMAT / REPLY SETTINGS
+// ═══════════════════════════════════════════
+let currentErrTab = 'invalid-subject';
+
+function selErrTab(id, el) {
+  currentErrTab = id;
+  document.querySelectorAll('.eftab').forEach(b => {
+    b.classList.remove('sel');
+    // Keep the green styling on the RF Reply tab when not selected
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').includes('rf-reply')) {
+      b.style.borderColor = 'rgba(63,185,80,0.4)';
+      b.style.color = 'var(--accent)';
+    } else {
+      b.style.borderColor = '';
+      b.style.color = '';
+    }
+  });
+  el.classList.add('sel');
+  el.style.borderColor = '';
+  el.style.color = '';
+  document.querySelectorAll('.errtab-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('errtab-' + id).style.display = 'block';
+  updateErrPreview();
+}
+
+function updateErrPreview() {
+  const id = currentErrTab;
+  const subjMap = {
+    'invalid-subject': 'invalid',
+    'node-not-found':  'notfound',
+    'msg-too-long':    'toolong',
+    'delivery-fail':   'fail',
+    'rf-reply':        'rfreply'
+  };
+  const key = subjMap[id];
+  const subj = get('err-subj-' + key) || errFormats[id]?.subject || '';
+  const body = (get('err-body-' + key) || errFormats[id]?.body || '')
+    .replace('{{user_subject}}', 'hello world')
+    .replace('{{node_prefix}}', 'a1b2c3')
+    .replace('{{node_name}}', 'AlphaNode')
+    .replace('{{known_nodes}}', '  AlphaNode → a1b2c3\n  BetaBase  → d4e5f6')
+    .replace('{{msg_bytes}}', '247')
+    .replace('{{max_bytes}}', '200')
+    .replace('{{rf_message}}', 'Hello from the field! All systems operational.')
+    .replace('{{gateway_email}}', get('agent-email') || 'gateway@example.com');
+
+  // Subject color: green for RF Reply, orange for error types
+  const isRfReply = id === 'rf-reply';
+  document.getElementById('err-preview-subj').style.color = isRfReply ? 'var(--accent)' : 'var(--warn)';
+  document.getElementById('err-preview-subj').textContent = 'Subject: ' + subj;
+  document.getElementById('err-preview-body').textContent = body;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  ['invalid','notfound','toolong','fail','rfreply'].forEach(k => {
+    const s = document.getElementById('err-subj-' + k);
+    const b = document.getElementById('err-body-' + k);
+    if (s) s.addEventListener('input', updateErrPreview);
+    if (b) b.addEventListener('input', updateErrPreview);
+  });
+});
+
+function saveErrFormats() {
+  errFormats = {
+    'invalid-subject': {
+      subject: get('err-subj-invalid'), body: get('err-body-invalid'), enabled: getChk('err-send-invalid')
+    },
+    'node-not-found': {
+      subject: get('err-subj-notfound'), body: get('err-body-notfound'), enabled: getChk('err-send-notfound')
+    },
+    'msg-too-long': {
+      subject: get('err-subj-toolong'), body: get('err-body-toolong'), enabled: getChk('err-send-toolong')
+    },
+    'delivery-fail': {
+      subject: get('err-subj-fail'), body: get('err-body-fail'), enabled: getChk('err-send-fail')
+    },
+    'rf-reply': {
+      subject: get('err-subj-rfreply'), body: get('err-body-rfreply'), enabled: getChk('err-send-rfreply')
+    },
+  };
+  try { localStorage.setItem('mesh_err_formats', JSON.stringify(errFormats)); } catch(e) {}
+  saveConfig(true);
+  toast('Reply settings saved');
+}
+
+function resetErrFormats() {
+  if (!confirm('Reset reply formats to defaults?')) return;
+  errFormats = defaultErrFormats();
+  loadErrFormats();
+  updateErrPreview();
+  toast('Reply formats reset');
+}
+
+function loadErrFormats() {
+  const ef = errFormats;
+  set('err-subj-invalid', ef['invalid-subject']?.subject || '');
+  set('err-body-invalid', ef['invalid-subject']?.body || '');
+  setChk('err-send-invalid', ef['invalid-subject']?.enabled !== false);
+
+  set('err-subj-notfound', ef['node-not-found']?.subject || '');
+  set('err-body-notfound', ef['node-not-found']?.body || '');
+  setChk('err-send-notfound', ef['node-not-found']?.enabled !== false);
+
+  set('err-subj-toolong', ef['msg-too-long']?.subject || '');
+  set('err-body-toolong', ef['msg-too-long']?.body || '');
+  setChk('err-send-toolong', ef['msg-too-long']?.enabled !== false);
+
+  set('err-subj-fail', ef['delivery-fail']?.subject || '');
+  set('err-body-fail', ef['delivery-fail']?.body || '');
+  setChk('err-send-fail', ef['delivery-fail']?.enabled !== false);
+
+  set('err-subj-rfreply', ef['rf-reply']?.subject || '');
+  set('err-body-rfreply', ef['rf-reply']?.body || '');
+  setChk('err-send-rfreply', ef['rf-reply']?.enabled !== false);
+}
+
+// ═══════════════════════════════════════════
+// LOGS
+// ═══════════════════════════════════════════
+function appendLog(entry) {
+  st.logs.push(entry);
+  if(entry.level==='ERROR'){st.errCount++;updErrBadge();}
+  const box=document.getElementById('logbox');
+  const ph=box.querySelector('span'); if(ph) box.innerHTML='';
+  const div=document.createElement('div'); div.className='le'; div.dataset.lv=entry.level;
+  if(st.logFilter!=='ALL'&&st.logFilter!==entry.level) div.classList.add('hide');
+  div.innerHTML=`<span class="lt">${esc(entry.time)}</span><span class="ll ${entry.level}">${entry.level}</span><span class="lm">${esc(entry.message)}</span>`;
+  box.appendChild(div);
+  if(document.getElementById('auto-scroll')?.checked) box.scrollTop=box.scrollHeight;
+  if(box.children.length>1200) box.removeChild(box.firstChild);
+  const msg=entry.message;
+  if(msg.includes('✅')&&msg.includes('Email from')&&msg.includes('→ mesh node')){const m=msg.match(/Email from (.+?) → mesh node (.+)/);if(m) addEmailHistory({dir:'out',subject:'→ RF',from:m[1],node:m[2],ts:Date.now()});}
+  else if(msg.includes('✅')&&msg.includes('Forwarded RF message to')){addEmailHistory({dir:'in',subject:'RF → Email',from:'RF node',node:'',ts:Date.now()});}
+  else if(msg.includes('❌')){addEmailHistory({dir:'err',subject:msg.replace(/❌\s*/,'').slice(0,60),from:'system',ts:Date.now()});}
+  const ml=document.getElementById('mini-log');
+  if(ml.querySelector('span')) ml.innerHTML='';
+  const row=document.createElement('div');
+  const cls=entry.level==='ERROR'?'ml-error':entry.level==='WARN'?'ml-warn':entry.level==='DEBUG'?'ml-debug':'ml-info';
+  row.className=cls; row.textContent=`${entry.time}  ${entry.message}`; ml.appendChild(row);
+  if(ml.children.length>10) ml.removeChild(ml.firstChild); ml.scrollTop=ml.scrollHeight;
+}
+function setFilter(f,btn){st.logFilter=f;document.querySelectorAll('.filter-btn').forEach(b=>b.className='filter-btn');const map={ALL:'fa',INFO:'fi',WARN:'fw',ERROR:'fe',DEBUG:'fd'};btn.classList.add(map[f]||'fa');document.querySelectorAll('.le').forEach(e=>e.classList.toggle('hide',f!=='ALL'&&e.dataset.lv!==f));}
+function clearLog(){st.logs=[];st.errCount=0;updErrBadge();document.getElementById('logbox').innerHTML='<span style="color:var(--muted)">Cleared.</span>';}
+function dlLog(){const txt=st.logs.map(l=>`[${l.time}] ${l.level.padEnd(5)} ${l.message}`).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download=`meshcore_${new Date().toISOString().slice(0,10)}.log`;a.click();}
+function updErrBadge(){const b=document.getElementById('err-badge');b.style.display=st.errCount>0?'inline':'none';b.textContent=st.errCount;}
+
+// ═══════════════════════════════════════════
+// CONTACTS
+// ═══════════════════════════════════════════
+function applyContacts(list) {
+  st.contacts=list; document.getElementById('ct-count').textContent=list.length;
+  const tbody=document.getElementById('ct-body');
+  if(!list.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px;">No contacts loaded</td></tr>';return;}
+  tbody.innerHTML=list.map(c=>{const name=c.adv_name||c.name||'Unknown',pfx=(c.public_key||'').slice(0,6)||'------';return `<tr><td>${esc(name)}</td><td style="color:var(--accent)">${pfx}</td><td>${new Date().toLocaleTimeString()}</td><td><span class="badge bg-green">● Online</span></td><td><button class="btn btn-ghost" style="padding:3px 9px;font-size:11px;margin-right:4px;" onclick="copyPfx('${pfx}')">Copy</button><button class="btn btn-blue" style="padding:3px 9px;font-size:11px;" onclick="composeToNode('${pfx}','${esc(name)}')">Compose</button></td></tr>`;}).join('');
+}
+function composeToNode(pfx,name){selectedNodePrefix=pfx;set('compose-prefix',pfx);const navBtn=document.querySelector('.nav-btn[onclick*="compose"]');nav('compose',navBtn);setTimeout(()=>{renderComposeNodes();updateComposePreview();},50);}
+async function reloadContacts(){const res=await api('GET','/api/contacts');if(res.contacts) applyContacts(res.contacts);toast('Contacts refreshed');}
+function copyPfx(p){navigator.clipboard.writeText(p).catch(()=>{});toast(`Copied: ${p}`);}
+
+// ═══════════════════════════════════════════
+// TEST / EXPORT
+// ═══════════════════════════════════════════
+async function testConn(){toast('Connection test not available without RF hardware');}
+async function testSMTP(){await saveConfig(true);toast('Sending test email…');const res=await api('POST','/api/test/smtp');toast(res.ok?res.message:'SMTP error: '+res.detail,!res.ok);}
+function exportPy(){const lines=[`# MeshCore Email Gateway config — ${new Date().toISOString()}`,`CONNECTION_TYPE = "${document.querySelector('.tr-card.sel input')?.value||'ble'}"`,`DEBUG = ${getChk('debug-mode')}`,`SERIAL_PORT = "${get('serial-port')}"`,`SERIAL_BAUDRATE = ${get('serial-baud')}`,`TCP_HOST = "${get('tcp-host')}"`,`TCP_PORT = ${get('tcp-port')}`,`TCP_AUTO_RECONNECT = ${getChk('tcp-reconnect')}`,`BLE_ADDRESS = ${get('ble-address')?'"'+get('ble-address')+'"':'None'}`,`BLE_PIN = "${get('ble-pin')}"`,`AGENT_EMAIL = "${get('agent-email')}"`,`SMTP_SERVER = "${get('smtp-server')}"`,`SMTP_PORT = ${get('smtp-port')}`,`SMTP_USER = "${get('smtp-user')}"`,`SMTP_PASSWORD = "${get('smtp-pass')}"`,`SMTP_USE_TLS = ${getChk('smtp-tls')}`,`IMAP_SERVER = "${get('imap-server')}"`,`IMAP_PORT = ${get('imap-port')}`,`IMAP_USER = "${get('imap-user')}"`,`IMAP_PASSWORD = "${get('imap-pass')}"`,`RF_MAX_MESSAGE_BYTES = ${get('rf-max')}`,`IDLE_TIMEOUT = ${get('idle-to')}`];const blob=new Blob([lines.join('\n')],{type:'text/x-python'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='config.py';a.click();toast('Exported config.py');}
+async function resetCfg(){if(!confirm('Reset all settings to defaults?')) return;await api('POST','/api/config',{});location.reload();}
+
+// ═══════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════
+const get    = id => { const el=document.getElementById(id); return el?el.value:''; };
+const getChk = id => { const el=document.getElementById(id); return el?el.checked:false; };
+const set    = (id,v) => { const el=document.getElementById(id); if(el&&v!==undefined) el.value=v; };
+const setChk = (id,v) => { const el=document.getElementById(id); if(el) el.checked=!!v; };
+const esc    = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function toast(msg, err=false) {
+  const t=document.getElementById('toast');
+  document.getElementById('toast-msg').textContent=msg;
+  t.style.borderColor=err?'var(--error)':'var(--accent)';
+  t.style.color=err?'var(--error)':'var(--accent)';
+  t.className='toast show'; clearTimeout(t._timer);
+  t._timer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+loadConfig();
+connectWS();
+renderTemplates();
+loadErrFormats();
+renderChart();
+setInterval(()=>renderChart(), 60000);
+</script>
+</body>
+</html>

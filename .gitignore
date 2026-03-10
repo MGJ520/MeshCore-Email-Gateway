@@ -1,0 +1,8 @@
+# Configuration file containing email credentials
+backend/config.json
+
+# IDE directories
+.idea/
+
+# GitHub configuration (if you don't want to track your own workflows)
+.github/
